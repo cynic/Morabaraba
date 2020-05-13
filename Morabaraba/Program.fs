@@ -279,9 +279,9 @@ let gameResult g =
     | _ -> Indeterminate // still some cows to place.
 
 let whiteColor = System.ConsoleColor.DarkCyan
-let whiteIntenseColor = System.ConsoleColor.Cyan
+let whiteIntenseColor = System.ConsoleColor.DarkGreen
 let blackColor = System.ConsoleColor.DarkRed
-let blackIntenseColor = System.ConsoleColor.Red
+let blackIntenseColor = System.ConsoleColor.DarkYellow
 
 let printBoard g =
     let cowsAndPositions =
@@ -372,7 +372,7 @@ let rec interact g tree =
         | Decision x -> x
         | Irrevocable (newState, opts) -> interact newState (Root opts)
         | SaveGame s ->
-            let ser = Nessos.FsPickler.BinarySerializer()
+            let ser = MBrace.FsPickler.BinarySerializer()
             try
                 using (System.IO.File.OpenWrite s) (fun f ->
                     ser.Serialize(f, g)
@@ -383,7 +383,7 @@ let rec interact g tree =
                 System.Console.ReadLine () |> ignore
             interact g tree
         | LoadGame s ->
-            let r = Nessos.FsPickler.BinarySerializer()
+            let r = MBrace.FsPickler.BinarySerializer()
             let h =
                 try
                     using (System.IO.File.OpenRead s) (fun f ->
