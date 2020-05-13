@@ -1,6 +1,4 @@
-﻿module Morabaraba.Program
-open Morabaraba.Data
-
+﻿module Morabaraba
 // A console-based game of Morabaraba: https://en.wikipedia.org/w/index.php?title=Morabaraba&oldid=701400946
 
 // Built as a class example, so not including any "advanced" functionality
@@ -36,6 +34,67 @@ Board:
  a1----------d1----------g1 
 
 *)
+
+module Data =
+    type Color =
+    | Black
+    | White
+
+    type GridPosition =
+    | A1 | A4 | A7
+    | B2 | B4 | B6
+    | C3 | C4 | C5
+    | D1 | D2 | D3 | D5 | D6 | D7
+    | E3 | E4 | E5
+    | F2 | F4 | F6
+    | G1 | G4 | G7
+
+    type Cow =
+    | Placed of Color * GridPosition
+    | Flying of Color * GridPosition
+
+    type Player = {
+        Name : string
+        Color : Color
+        Cows : Cow list
+        InHand : int
+        PreviousMills : ((GridPosition * GridPosition * GridPosition) list) list
+    }
+
+    type Game = {
+        Active : Player
+        Passive : Player
+        DrawCounter : int
+    }
+
+    type GameResult =
+    | Winner of reason:string * Color
+    | Draw of reason:string
+    | Indeterminate
+
+    type ListItem<'a> = {
+        Description : string
+        WhenChosen : unit -> 'a
+    }
+
+    type OptionScreen<'a> = {
+        Prompt : string
+        Choices : ListItem<InteractionResult<'a>> list
+    }
+
+    and InteractionResult<'a> =
+    | InvalidInput
+    | MoreChoices of OptionScreen<'a>
+    | GoBack
+    | Decision of 'a
+    | Irrevocable of newState:'a * newRoot:OptionScreen<'a>
+
+    type InteractionTree<'a> =
+    | Root of OptionScreen<'a>
+    | Node of node:InteractionTree<'a> * data:OptionScreen<'a>
+    | Leaf of 'a
+
+open Data
 
 let swapPlayers ({Active=x;Passive=y} as g) = {g with Active=y; Passive=x}
 
@@ -230,7 +289,6 @@ let excludePreviousMillRuleBreakers player moves =
             |> List.choose (fun (from, ``to``) ->
                 match currentMills |> List.exists (millContains from) with
                 | false ->
-                    printfn "%A is not in a mill right now." from
                     Some (from, ``to``) // this one's fine; it's not in a mill right now.
                 | true -> // this one is in a mill right now...
                     let revised =
@@ -241,12 +299,10 @@ let excludePreviousMillRuleBreakers player moves =
                                 let newMills = moveCow player.Cows from proposed |> millsIn
                                 not (newMills |> List.exists (fun v -> xs |> List.contains v))
                         )
-                    printfn "Revised list of moves for %A@%A: %A ==> %A" player.Color from ``to`` revised
                     match revised with
                     | [] -> None // exclude entirely.  No valid move for this cow.
                     | _ -> Some (from, revised)
             )
-        System.Console.ReadLine () |> ignore
         newMoves
 
 let activeMoves g = occupiedSpaces g |> movesFor g.Active.Cows |> excludePreviousMillRuleBreakers g.Active
@@ -294,10 +350,10 @@ let printBoard g =
                 match p=position with
                 | true ->
                     match c with
-                    | Flying (White,p) -> Some whiteIntenseColor
-                    | Flying (Black,p) -> Some blackIntenseColor
-                    | Placed (White,p) -> Some whiteColor
-                    | Placed (Black,p) -> Some blackColor
+                    | Flying (White,_) -> Some whiteIntenseColor
+                    | Flying (Black,_) -> Some blackIntenseColor
+                    | Placed (White,_) -> Some whiteColor
+                    | Placed (Black,_) -> Some blackColor
                 | false -> None
             )
         defaultArg color System.ConsoleColor.Gray
@@ -333,12 +389,6 @@ let printBoard g =
 let getInput opts =
     let input = System.Console.ReadLine ()
     match input with
-    | "s" | "S" ->
-        printf "Savegame name? "
-        SaveGame (System.Console.ReadLine ())
-    | "l" | "L" ->
-        printf "Savegame to load? "
-        LoadGame (System.Console.ReadLine ())
     | _ ->
         match input |> System.Int32.TryParse with
         | true, n ->
@@ -371,36 +421,10 @@ let rec interact g tree =
             | Node (parent, _) -> interact g parent
         | Decision x -> x
         | Irrevocable (newState, opts) -> interact newState (Root opts)
-        | SaveGame s ->
-            let ser = MBrace.FsPickler.BinarySerializer()
-            try
-                using (System.IO.File.OpenWrite s) (fun f ->
-                    ser.Serialize(f, g)
-                )
-            with
-            | e ->
-                printfn "Couldn't save: %s\nEnter to continue." e.Message
-                System.Console.ReadLine () |> ignore
-            interact g tree
-        | LoadGame s ->
-            let r = MBrace.FsPickler.BinarySerializer()
-            let h =
-                try
-                    using (System.IO.File.OpenRead s) (fun f ->
-                        r.Deserialize f
-                    ) |> swapPlayers |> Some
-                with
-                | e ->
-                    printfn "Couldn't load: %s\nEnter to continue." e.Message
-                    System.Console.ReadLine () |> ignore
-                    None
-            match h with
-            | Some g -> g
-            | None -> interact g tree
     match tree with
     | Root options ->
         waitForInput options
-    | Node (parent, options) ->
+    | Node (_, options) ->
         let backChoice =
             {Description="Back to previous menu"; WhenChosen=fun () -> GoBack}
         let options = {options with Choices=options.Choices @ [backChoice]}
@@ -468,6 +492,6 @@ let getDetails () =
     {Active=p0; Passive=p1; DrawCounter=0}
 
 [<EntryPoint>]
-let main argv = 
+let main _ = 
     getDetails () |> startGame
     0 // return an integer exit code

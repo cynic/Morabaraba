@@ -6,12 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Data.fs" />
     <Compile Include="Program.fs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="FsPickler" Version="5.3.2" />
   </ItemGroup>
 
 </Project>
